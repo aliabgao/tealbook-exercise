@@ -23,6 +23,7 @@ async function getClimateData(date){
     
 async function callGetClimateData(date){
     const climateData = await getClimateData(date);
+    console.log(climateData);
 }
 
 // call to function

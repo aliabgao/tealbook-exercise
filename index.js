@@ -3,18 +3,25 @@ const fs = require('fs');
 
 async function getClimateData(date){
     try{
+        if (!validateDate) 
+            throw new Error('Please provide a valid ISO Date (ex. 2020-03-17)');
+
         date = new Date(date+' 00:00:00');
+        if (date.toString() === 'Invalid Date')
+            throw new Error('Please provide a valid ISO Date (ex. 2020-03-17)');
+        
         const cities = await getCities();
         const cityTemps = await getCityTempsByDate(cities,date);
         const temperatureData = await getCanadaTemperatures(cityTemps,date);
         console.log(temperatureData);
+        
     }catch(err){
         console.log('Error',err.message);
     }
 }
     
 
-getClimateData('2020-01-17');
+getClimateData('2020-01-31');
 
 
 function getCities(){
@@ -106,6 +113,10 @@ function getMeanTemperature(cityData){
     const avg = (sum / cityTemperatures.length).toFixed(1) ;
 
     return avg;
+}
+
+function validateDate(dateString){
+    return dateString.match(/([12]\d{3}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01]))/);
 }
 
 function calculateDistance(lat1, lon1, lat2, lon2) {

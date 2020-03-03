@@ -1,14 +1,21 @@
 const csv = require('csv-parser');
 const fs = require('fs');
 
-
-async function getclimateData(date){
-    date = new Date(date+' 00:00:00');
-    const cities = await getCities();
-    const cityTemps = await getCityTempsByDate(cities,date);
+async function getClimateData(date){
+    try{
+        date = new Date(date+' 00:00:00');
+        const cities = await getCities();
+        const cityTemps = await getCityTempsByDate(cities,date);
+        const temperatureData = await getCanadaTemperatures(cityTemps,date);
+        console.log(temperatureData);
+    }catch(err){
+        console.log('Error',err.message);
+    }
 }
+    
 
-getclimateData('2020-01-15');
+getClimateData('2020-01-17');
+
 
 function getCities(){
     return new Promise( resolve=> {
@@ -23,40 +30,82 @@ function getCities(){
 }
 
 function getCityTempsByDate(cities,date){
-    //console.log(cities,date);
-    return new Promise( resolve=>{
+    
+    return new Promise( (resolve, reject)=>{
         
         const stationTemps = [];
-        fs.createReadStream('./data/climate.csv')
-        .pipe(csv())
-        .on('data', (cityData) => {
-            if (date.getFullYear() == parseInt(cityData.LOCAL_YEAR) && (date.getMonth()+1) == parseInt(cityData.LOCAL_MONTH) && date.getDate() == parseInt(cityData.LOCAL_DAY)){
-                stationTemps.push(cityData);
-            }
-        })
-        .on('end', () => { 
-            cities.forEach(city => {
-                //find the closest temp for each city on the day of
-                
-                for (i=0; i<stationTemps.length;i++){
-                    stationTemps[i].distance = calculateDistance(city.lat, city.lng, stationTemps[i].lat, stationTemps[i].lng);
+        try{
+            fs.createReadStream('./data/climate.csv')
+            .pipe(csv())
+            .on('data', (cityData) => {
+                if (date.getFullYear() == parseInt(cityData.LOCAL_YEAR) && (date.getMonth()+1) == parseInt(cityData.LOCAL_MONTH) && date.getDate() == parseInt(cityData.LOCAL_DAY)){
+                    stationTemps.push(cityData);
                 }
-                stationTemps.sort(function(a,b){
-                    return a.distance - b.distance;
+            })
+            .on('end', () => { 
+                cities.forEach(city => {
+                    //find the closest temp for each city on the day 
+                    
+                    for (i=0; i<stationTemps.length;i++){
+                        stationTemps[i].distance = calculateDistance(city.lat, city.lng, stationTemps[i].lat, stationTemps[i].lng);
+                    }
+                    stationTemps.sort(function(a,b){
+                        return a.distance - b.distance;
+                    });
+
+                    //found stations without temps for a date.
+                    //find the closes station with a temp to the city.
+                    //in another iteration, use a distance threshold to exclude the city for the date.
+                    for (i=0; i<stationTemps.length;i++){
+                        if (stationTemps[i].MEAN_TEMPERATURE.trim() !== ''){
+                            city.stationName = stationTemps[i].STATION_NAME; 
+                            city.stationLat = stationTemps[i].lat;
+                            city.stationLng = stationTemps[i].lng;
+                            city.meanTemp = stationTemps[i].MEAN_TEMPERATURE;
+                            break;
+                        }
+                    }
                 });
-
-                city.stationName = stationTemps[0].STATION_NAME; 
-                city.stationLat = stationTemps[0].lat;
-                city.stationLng = stationTemps[0].lng;
-
-                city.meanTemp = stationTemps[0].MEAN_TEMPERATURE;
+                
+                resolve(cities);
             });
-            
-            console.log(cities)
-            resolve(cities);
-        });
+        }catch(err){
+            reject(new Error(err.message));
+        }
     });
   
+}
+
+function getCanadaTemperatures(cityData, date){
+    return new Promise( resolve=>{
+        let canadaTemperatures = { 
+            date: date.getFullYear()+'-'+(date.getMonth()+1)+'-'+date.getDate() ,
+            meanTemperature: getMeanTemperature(cityData),
+            medianTemperature: getMedianTemperature(cityData)
+        };
+
+        resolve(canadaTemperatures);
+    });
+}
+
+function getMedianTemperature(cityData){
+    const cityTemperatures = cityData.slice().map(cities=>parseFloat(cities.meanTemp)).sort((a,b) => a-b);
+    const medianIndex= Math.floor(cityTemperatures.length/2);
+
+    if (cityTemperatures.length % 2 === 0){
+        return ((cityTemperatures[medianIndex - 1] + cityTemperatures[medianIndex]) / 2).toFixed(1);
+    }
+
+    return cityTemperatures[medianIndex].toFixed(1);
+}
+
+function getMeanTemperature(cityData){
+    const cityTemperatures = cityData.slice().map(cities=>parseFloat(cities.meanTemp));
+    
+    const sum = cityTemperatures.reduce((accumulator, currentValue) => accumulator + currentValue);
+    const avg = (sum / cityTemperatures.length).toFixed(1) ;
+
+    return avg;
 }
 
 function calculateDistance(lat1, lon1, lat2, lon2) {

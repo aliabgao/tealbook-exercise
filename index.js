@@ -1,6 +1,7 @@
 const csv = require('csv-parser');
 const fs = require('fs');
 
+
 async function getClimateData(date){
     try{
         if (!validateDate) 
@@ -13,26 +14,37 @@ async function getClimateData(date){
         const cities = await getCities();
         const cityTemps = await getCityTempsByDate(cities,date);
         const temperatureData = await getCanadaTemperatures(cityTemps,date);
-        console.log(temperatureData);
+        return await temperatureData;
         
     }catch(err){
-        console.log('Error',err.message);
+        return err.message;
     }
 }
     
+async function callGetClimateData(date){
+    const climateData = await getClimateData(date);
+    console.log(climateData);
+}
 
-getClimateData('2020-01-31');
+// call to function
+callGetClimateData('2020-03-02');
+
 
 
 function getCities(){
     return new Promise( resolve=> {
-        const cityArray = [];
-        fs.createReadStream('./data/cities.csv')
-        .pipe(csv())
-        .on('data', (cityData) => cityArray.push(cityData))
-        .on('end', () => { 
-            resolve(cityArray);
-        });
+        
+        try{
+            const cityArray = [];
+            fs.createReadStream('./data/cities.csv')
+            .pipe(csv())
+            .on('data', (cityData) => cityArray.push(cityData))
+            .on('end', () => { 
+                resolve(cityArray);
+            });
+        }catch(err){
+            return reject(new Error(err.message));
+        }
     });
 }
 
@@ -50,6 +62,9 @@ function getCityTempsByDate(cities,date){
                 }
             })
             .on('end', () => { 
+                if (stationTemps.length === 0)
+                    return reject(new Error('No climate data found for the date entered.'));
+
                 cities.forEach(city => {
                     //find the closest temp for each city on the day 
                     
@@ -74,10 +89,10 @@ function getCityTempsByDate(cities,date){
                     }
                 });
                 
-                resolve(cities);
+                return resolve(cities);
             });
         }catch(err){
-            reject(new Error(err.message));
+            return reject(new Error(err.message));
         }
     });
   
